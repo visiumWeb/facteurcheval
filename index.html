@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fiche du Jour</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -17,222 +18,154 @@
   .card {
     background: #faf7f2;
     border-radius: 8px;
-    padding: 40px 48px;
+    padding: 48px 52px;
     text-align: center;
-    box-shadow: 0 8px 40px rgba(0,0,0,.4);
-    width: 340px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.5);
+    width: 360px;
   }
-  h1 {
-    font-size: 22pt;
-    color: #1a1a2e;
-    font-weight: normal;
-    letter-spacing: .02em;
-    margin-bottom: 4px;
-  }
-  .sub {
-    font-family: Arial, sans-serif;
-    font-size: 9pt;
-    color: #aaa;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    margin-bottom: 32px;
-  }
-  label {
-    font-family: Arial, sans-serif;
-    font-size: 8pt;
-    font-weight: bold;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: #888;
-    display: block;
-    margin-bottom: 8px;
-  }
+  h1 { font-size: 22pt; color: #1a1a2e; font-weight: normal; margin-bottom: 4px; }
+  .sub { font-family: Arial, sans-serif; font-size: 8.5pt; color: #aaa; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 36px; }
+  label { font-family: Arial, sans-serif; font-size: 8pt; font-weight: bold; letter-spacing: .1em; text-transform: uppercase; color: #888; display: block; margin-bottom: 8px; }
   input[type="date"] {
-    width: 100%;
-    border: 2px solid #c8b89a;
-    border-radius: 4px;
-    padding: 10px 14px;
-    font-family: 'Georgia', serif;
-    font-size: 14pt;
-    color: #1a1a2e;
-    background: white;
-    text-align: center;
-    outline: none;
-    margin-bottom: 24px;
-    transition: border-color .2s;
+    width: 100%; border: 2px solid #c8b89a; border-radius: 4px;
+    padding: 11px 14px; font-family: 'Georgia', serif; font-size: 15pt;
+    color: #1a1a2e; background: white; text-align: center; outline: none;
+    margin-bottom: 28px; transition: border-color .2s;
   }
   input[type="date"]:focus { border-color: #8b2635; }
   .btn {
-    width: 100%;
-    background: #1a1a2e;
-    color: white;
-    border: none;
-    padding: 14px;
-    border-radius: 4px;
-    font-family: Arial, sans-serif;
-    font-size: 11pt;
-    font-weight: bold;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: background .2s, transform .1s;
+    width: 100%; background: #1a1a2e; color: white; border: none;
+    padding: 15px; border-radius: 4px; font-family: Arial, sans-serif;
+    font-size: 11pt; font-weight: bold; letter-spacing: .06em;
+    text-transform: uppercase; cursor: pointer; transition: background .2s;
   }
   .btn:hover { background: #8b2635; }
-  .btn:active { transform: scale(.98); }
-  .btn:disabled { background: #ccc; cursor: default; }
-  .status {
-    margin-top: 16px;
-    font-family: Arial, sans-serif;
-    font-size: 9pt;
-    color: #888;
-    min-height: 18px;
+  .preview {
+    margin-top: 18px; font-family: Arial, sans-serif; font-size: 10pt;
+    color: #8b2635; font-weight: bold; min-height: 18px; letter-spacing: .04em;
   }
-  .status.ok { color: #2a7a3b; font-weight: bold; }
-  .status.err { color: #8b2635; }
 </style>
 </head>
 <body>
 <div class="card">
   <h1>Fiche de Vente</h1>
   <div class="sub">Génération PDF journalier</div>
-
-  <label for="datePicker">Date du jour</label>
-  <input type="date" id="datePicker">
-
-  <button class="btn" id="btn" onclick="generer()">🖨️ Générer &amp; Imprimer</button>
-  <div class="status" id="status"></div>
+  <label for="dp">Date du jour</label>
+  <input type="date" id="dp">
+  <button class="btn" onclick="genPDF()">🖨️ Générer &amp; Imprimer</button>
+  <div class="preview" id="prev"></div>
 </div>
 
 <script>
-// Set today's date
-const today = new Date().toISOString().split('T')[0];
-document.getElementById('datePicker').value = today;
+const DAYS   = ['DIMANCHE','LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI'];
+const MONTHS = ['JANVIER','FÉVRIER','MARS','AVRIL','MAI','JUIN','JUILLET','AOÛT','SEPTEMBRE','OCTOBRE','NOVEMBRE','DÉCEMBRE'];
 
-const DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+// Set today
+const today = new Date();
+document.getElementById('dp').value = today.toISOString().split('T')[0];
+updatePreview();
+
+document.getElementById('dp').addEventListener('change', updatePreview);
 
 function formatDate(str) {
   const [y,m,d] = str.split('-');
   const dt = new Date(+y, +m-1, +d);
-  return `${DAYS[dt.getDay()].toUpperCase()} ${+d} ${MONTHS[+m-1].toUpperCase()}`;
+  return `${DAYS[dt.getDay()]} ${+d} ${MONTHS[+m-1]}`;
+}
+function updatePreview() {
+  const v = document.getElementById('dp').value;
+  document.getElementById('prev').textContent = v ? formatDate(v) : '';
 }
 
-async function generer() {
-  const dateStr = document.getElementById('datePicker').value;
-  if (!dateStr) { setStatus('Choisissez une date.', 'err'); return; }
+function genPDF() {
+  const v = document.getElementById('dp').value;
+  if (!v) { alert('Choisissez une date.'); return; }
+  const dateStr = formatDate(v);
 
-  const label = formatDate(dateStr);
-  const btn = document.getElementById('btn');
-  btn.disabled = true;
-  setStatus('⏳ Génération en cours…', '');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'cm', format: 'a4' });
 
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        messages: [{
-          role: "user",
-          content: `Run this Python script and return ONLY the base64-encoded PDF bytes, nothing else, no explanation.
+  const W = 21;   // A4 width cm
+  const H = 29.7; // A4 height cm
 
-The script uses reportlab. Run it with the date label: "${label}"
+  // --- coordinates (matching original Python exactly) ---
+  const x0 = 1.5,  x1 = 8.5,  x2 = 12,  x3 = 15.5,  x4 = 18.5,  x5 = 21;
 
-\`\`\`python
-import sys, base64
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
-from reportlab.pdfgen import canvas
-import io
-
-date_str = "${label}"
-
-buf = io.BytesIO()
-c = canvas.Canvas(buf, pagesize=A4)
-width, height = A4
-
-c.setFillColorRGB(1, 1, 1)
-c.rect(0, 0, width, height, fill=1, stroke=0)
-c.setFillColorRGB(0, 0, 0)
-
-x0 = 1.5*cm; x1 = 8.5*cm; x2 = 12*cm; x3 = 15.5*cm; x4 = 18.5*cm; x5 = 21*cm
-
-def hline(y): c.line(x0, y, x5, y)
-def vlines(y_top, y_bot):
-    for x in [x1, x2, x3, x4, x5]: c.line(x, y_top, x, y_bot)
-
-c.setFont("Helvetica-Bold", 14)
-c.drawCentredString(width/2, height - 1.8*cm, date_str)
-
-top_y = height - 3*cm
-disques_y = top_y - 0.7*cm
-livres_y  = disques_y - 0.7*cm
-section1_bottom = livres_y - 4*cm
-
-hline(top_y); hline(disques_y); hline(livres_y); hline(section1_bottom)
-vlines(top_y, section1_bottom)
-
-c.setFont("Helvetica-Bold", 9)
-c.drawString(x1+0.2*cm, top_y-0.5*cm, "ESP")
-c.drawString(x2+0.2*cm, top_y-0.5*cm, "CB")
-c.drawString(x3+0.2*cm, top_y-0.5*cm, "CH")
-c.drawString(x4+0.2*cm, top_y-0.5*cm, "ST")
-
-c.setFont("Helvetica", 9)
-c.drawString(x0+0.2*cm, disques_y-0.5*cm, "DISQUES")
-c.drawString(x0+0.2*cm, livres_y-0.5*cm,  "LIVRES")
-
-obj_top = section1_bottom - 1.2*cm
-obj_bottom = 3.5*cm
-
-hline(obj_top); hline(obj_top - 0.7*cm); hline(obj_bottom)
-vlines(obj_top, obj_bottom)
-
-c.setFont("Helvetica-Bold", 9)
-c.drawString(x0+0.2*cm, obj_top-0.5*cm, "OBJETS")
-c.drawString(x1+0.2*cm, obj_top-0.5*cm, "ESP")
-c.drawString(x2+0.2*cm, obj_top-0.5*cm, "CB")
-c.drawString(x3+0.2*cm, obj_top-0.5*cm, "CH")
-c.drawString(x4+0.2*cm, obj_top-0.5*cm, "ST")
-
-c.setFont("Helvetica", 12)
-c.drawString(x0+0.2*cm, 2*cm, "Achat")
-
-c.save()
-buf.seek(0)
-print(base64.b64encode(buf.read()).decode())
-\`\`\`
-
-Return ONLY the base64 string.`
-        }]
-      })
-    });
-
-    const data = await res.json();
-    const b64 = data.content.map(b => b.text || '').join('').trim();
-
-    // Decode base64 → Blob → open
-    const binary = atob(b64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const blob = new Blob([bytes], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-
-    // Open in new tab (browser will show print dialog or PDF viewer)
-    window.open(url, '_blank');
-    setStatus('✅ PDF ouvert — imprimez depuis votre navigateur.', 'ok');
-  } catch(e) {
-    setStatus('❌ Erreur : ' + e.message, 'err');
-  } finally {
-    btn.disabled = false;
+  function hline(y) { doc.line(x0, y, x5, y); }
+  function vlines(yTop, yBot) {
+    [x1, x2, x3, x4, x5].forEach(x => doc.line(x, yTop, x, yBot));
   }
-}
 
-function setStatus(msg, cls) {
-  const el = document.getElementById('status');
-  el.textContent = msg;
-  el.className = 'status ' + cls;
+  // jsPDF y=0 is TOP (unlike reportlab where y=0 is bottom)
+  // We'll work in "from-top" coords directly
+  // reportlab: y from bottom. Convert: y_top = H - y_reportlab
+
+  function rl(y) { return H - y; } // convert reportlab y → jsPDF y
+
+  // --- TITLE ---
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text(dateStr, W / 2, rl(H - 1.8), { align: 'center' });
+
+  // --- SECTION DISQUES + LIVRES ---
+  const top_y         = H - 3;
+  const disques_y     = top_y - 0.7;
+  const livres_y      = disques_y - 0.7;
+  const section1_bot  = livres_y - 4;
+
+  doc.setLineWidth(0.02);
+  hline(rl(top_y));
+  hline(rl(disques_y));
+  hline(rl(livres_y));
+  hline(rl(section1_bot));
+  vlines(rl(top_y), rl(section1_bot));
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('ESP', x1 + 0.2, rl(top_y - 0.5));
+  doc.text('CB',  x2 + 0.2, rl(top_y - 0.5));
+  doc.text('CH',  x3 + 0.2, rl(top_y - 0.5));
+  doc.text('ST',  x4 + 0.2, rl(top_y - 0.5));
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('DISQUES', x0 + 0.2, rl(disques_y - 0.5));
+  doc.text('LIVRES',  x0 + 0.2, rl(livres_y  - 0.5));
+
+  // --- SECTION OBJETS ---
+  const obj_top    = section1_bot - 1.2;
+  const obj_header = obj_top - 0.7;
+  const obj_bot    = 3.5;
+
+  hline(rl(obj_top));
+  hline(rl(obj_header));
+  hline(rl(obj_bot));
+  vlines(rl(obj_top), rl(obj_bot));
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('OBJETS', x0 + 0.2, rl(obj_top - 0.5));
+  doc.text('ESP',    x1 + 0.2, rl(obj_top - 0.5));
+  doc.text('CB',     x2 + 0.2, rl(obj_top - 0.5));
+  doc.text('CH',     x3 + 0.2, rl(obj_top - 0.5));
+  doc.text('ST',     x4 + 0.2, rl(obj_top - 0.5));
+
+  // --- ACHAT ---
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(12);
+  doc.text('Achat', x0 + 0.2, rl(2));
+
+  // --- OUTPUT ---
+  const pdfBlob = doc.output('blob');
+  const url = URL.createObjectURL(pdfBlob);
+  const win = window.open(url, '_blank');
+  if (!win) {
+    // fallback: direct download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fiche_${v}.pdf`;
+    a.click();
+  }
 }
 </script>
 </body>
